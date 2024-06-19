@@ -1,0 +1,118 @@
+#### 1. 3주차 회고
+
+Server Component의 자식으로는 Client Component가 올 수 있지만, Client Component의 하위에는 Server Component가 올 수 없다.
+==> Client Component는 가장 뿌리에 두도록 한다.
+
+#### Suspense
+
+```typescript
+import ServerOne from "@/components/ServerOne";
+import ServerTwo from "@/components/ServerTwo";
+import { Suspense } from "react";
+
+export default function About() {
+  return (
+    <>
+      <h1>About Pages</h1>
+      <Suspense
+        fallback={<h1 className="text-rose-500">suspense one loading...</h1>}
+      >
+        <ServerOne />
+      </Suspense>
+      <Suspense
+        fallback={<h1 className="text-blue-500">suspense two loading</h1>}
+      >
+        <ServerTwo />
+      </Suspense>
+    </>
+  );
+}
+```
+
+모든 컴포넌트가 렌더링이 완료될 때까지 기다려야 하는 이전방법에 비해
+
+Suspense안의 컴포넌트가 먼저 완료되면, 완료되는 것부터 보여지게 된다.(단 Suspense에는 server component만 들어갈 수 있다)
+
+무한 스크롤과 캐싱 시스템에 대해 배웠지만 이후 복습이 필요하다...
+
+### 캐싱시스템
+
+요청 memoization
+: 서버 사이드에서 함수의 return 값을 캐싱합니다. 한 번의 페이지 요청에 대한 처리 과정에서 사용할 수 있으며 여러 컴포넌트에서 데이터를 재사용할 수 있습니다.
+
+Data Cache
+: 요청 memoization이 없을 때 서버 사이드에서 fetch api를 호출하게 되고 이에 따라 받은 응답을 캐싱합니다. 여러 사용자 사이에서 공유할 수 있는 데이터입니다.
+
+Full route cache
+: 서버 사이드에서 html과 RSC payload를 저장합니다.
+
+Router Cache
+: 클라이언트 사이드에서 RSC payload를 캐싱하여 네비게이션으로 인한 라우트 이동 시 서버 요청을 줄일 수 있습니다.
+
+그 와중에도 그래도
+
+```
+await fetch("http://localhost:4000/posts", { cache: "no-store" })
+  ).json();
+```
+
+no store를 적용하면, 최신 데이터가 값이 변경된것 처럼 보이지만, no store를 지우면, 캐싱된 기존의 데이터 값이 나오게 된다.
+
+라우터 캐시를 무력화 하는 방법으로 revalidate가 있다.
+
+```typescript
+    await fetch("http://localhost:4000/posts", {
+      next: { revalidate: 10 },
+    })
+```
+
+- revalidate의 시간만큼 흐른 뒤 두번 요청을 해야 최신 데이터를 받을 수 있다.(revalidate 만큼 흐른뒤 받는 첫 요청은 쿠키를 참조하면서 revalidate를 적용하면서 두번째 요청때 최신값을 가져온다)
+- 다시 원점 소스에 요청해서 새로운 데이터 캐시를 저장
+
+server action 으로 revalidatePath, Tag를 사용할 수 있다.
+
+```typescript
+libs/actions.ts
+
+"use server";
+
+import { revalidatePath, revalidateTag } from "next/cache";
+
+export async function clickHandler() {
+  revalidatePath("/a");
+}
+```
+
+```typescript
+import { clickHandler } from "@/libs/actions";
+
+export default async function APage() {
+  const posts = await (await fetch("http://localhost:4000/posts")).json();
+  return (
+    <>
+      <h1>APage Component</h1>
+      <form action={clickHandler}>
+        <button type="submit">On Demand</button>
+      </form>
+      <h1>{new Date().toLocaleTimeString()}</h1>
+      <pre> {JSON.stringify(posts, null, 2)}</pre>
+    </>
+  );
+}
+```
+
+또 mongoose를 이용하여 mongoDB를 연결하였다. 혼자 공부할 땐 라이브러리 없이 연결을 했는데 확실히 라이브러리를 이용하니 편하다.
+
+```typescript
+libs/schema.ts
+import mongoose from "mongoose";
+
+const userSchema = new mongoose.Schema({});
+
+export const User = mongoose.model("User", userSchema);
+```
+
+---
+
+이로써 3주간의 사전직무교육이 끝났다.
+아직 많이 부족한 걸 느끼는데 시간이 참 빠르다.
